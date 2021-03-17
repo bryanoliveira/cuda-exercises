@@ -1,23 +1,38 @@
 #include <stdio.h>
+#include <assert.h>
 #include <math.h>
 
 // Simple define to index into a 1D array from 2D space
 #define I2D(num, c, r) ((r)*(num)+(c))
+
+
+inline cudaError_t checkCuda(cudaError_t result) {
+  if (result != cudaSuccess) {
+      fprintf(stderr, "CUDA Runtime Error: %s\n", cudaGetErrorString(result));
+      // assert makes the program stop
+      assert(result == cudaSuccess);
+  }
+  return result;
+}
 
 /*
  * `step_kernel_mod` is currently a direct copy of the CPU reference solution
  * `step_kernel_ref` below. Accelerate it to run as a CUDA kernel.
  */
 
-void step_kernel_mod(int ni, int nj, float fact, float* temp_in, float* temp_out)
+__global__ void step_kernel_mod(int ni, int nj, float fact, float* temp_in, float* temp_out)
 {
   int i00, im10, ip10, i0m1, i0p1;
   float d2tdx2, d2tdy2;
 
+  // the implementation below assumed i represents x and j represents y dimensions
+  int i = blockDim.x * blockIdx.x + threadIdx.x;
+  int j = blockDim.y * blockIdx.y + threadIdx.y;
+  dim3 stride(gridDim.x * blockDim.x, gridDim.y * blockDim.y);
 
-  // loop over all points in domain (except boundary)
-  for ( int j=1; j < nj-1; j++ ) {
-    for ( int i=1; i < ni-1; i++ ) {
+  // avoid boundaries & add support to stride
+  for (; j >= 1 && j < nj - 1; j += stride.y) {
+    for (; i >= 1 && i < ni - 1; i += stride.x) {
       // find indices into linear memory
       // for central point and neighbours
       i00 = I2D(ni, i, j);
@@ -77,10 +92,10 @@ int main()
 
   const int size = ni * nj * sizeof(float);
 
-  temp1_ref = (float*)malloc(size);
-  temp2_ref = (float*)malloc(size);
-  temp1 = (float*)malloc(size);
-  temp2 = (float*)malloc(size);
+  checkCuda(cudaMallocManaged(&temp1_ref, size));
+  checkCuda(cudaMallocManaged(&temp2_ref, size));
+  checkCuda(cudaMallocManaged(&temp1, size));
+  checkCuda(cudaMallocManaged(&temp2, size));
 
   // Initialize with random data
   for( int i = 0; i < ni*nj; ++i) {
@@ -94,17 +109,26 @@ int main()
     // swap the temperature pointers
     temp_tmp = temp1_ref;
     temp1_ref = temp2_ref;
-    temp2_ref= temp_tmp;
+    temp2_ref = temp_tmp;
   }
+
+  // the implementation assumed i represents x and j represents y dimensions
+  dim3 threads_per_block(16, 16);  // 256 threads per block
+  dim3 number_of_blocks(
+    (ni + threads_per_block.x - 1) / threads_per_block.x,
+    (nj + threads_per_block.y - 1) / threads_per_block.y 
+  );
 
   // Execute the modified version using same data
   for (istep=0; istep < nstep; istep++) {
-    step_kernel_mod(ni, nj, tfac, temp1, temp2);
+    step_kernel_mod<<<number_of_blocks, threads_per_block>>>(ni, nj, tfac, temp1, temp2);
+    cudaDeviceSynchronize();
+    checkCuda(cudaGetLastError());
 
     // swap the temperature pointers
     temp_tmp = temp1;
     temp1 = temp2;
-    temp2= temp_tmp;
+    temp2 = temp_tmp;
   }
 
   float maxError = 0;
@@ -119,10 +143,10 @@ int main()
   else
     printf("The Max Error of %.5f is within acceptable bounds.\n", maxError);
 
-  free( temp1_ref );
-  free( temp2_ref );
-  free( temp1 );
-  free( temp2 );
+  checkCuda(cudaFree( temp1_ref ));
+  checkCuda(cudaFree( temp2_ref ));
+  checkCuda(cudaFree( temp1 ));
+  checkCuda(cudaFree( temp2 ));
 
   return 0;
 }

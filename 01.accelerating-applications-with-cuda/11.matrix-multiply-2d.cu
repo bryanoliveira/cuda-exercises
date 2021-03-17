@@ -70,7 +70,9 @@ int main() {
      * that can be used in matrixMulGPU above.
      */
 
+    // 256 threads per block
     dim3 threads_per_block(16, 16);
+    // enough blocks in each dimension to perform the whole calculation
     dim3 number_of_blocks(
         (N + threads_per_block.x - 1) / threads_per_block.x, 
         (N + threads_per_block.y - 1) / threads_per_block.y
