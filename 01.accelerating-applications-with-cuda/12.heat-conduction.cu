@@ -122,8 +122,8 @@ int main()
   // Execute the modified version using same data
   for (istep=0; istep < nstep; istep++) {
     step_kernel_mod<<<number_of_blocks, threads_per_block>>>(ni, nj, tfac, temp1, temp2);
-    cudaDeviceSynchronize();
     checkCuda(cudaGetLastError());
+    checkCuda(cudaDeviceSynchronize());
 
     // swap the temperature pointers
     temp_tmp = temp1;

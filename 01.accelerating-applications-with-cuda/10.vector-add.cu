@@ -56,8 +56,8 @@ int main()
   size_t threads_per_block = 256;
   size_t blocks = (N + threads_per_block - 1) / threads_per_block;
   addVectorsInto<<<blocks, threads_per_block>>>(c, a, b, N);
-  cudaDeviceSynchronize();
   checkCuda(cudaGetLastError());
+  checkCuda(cudaDeviceSynchronize());
 
   checkElementsAre(7, c, N);
 

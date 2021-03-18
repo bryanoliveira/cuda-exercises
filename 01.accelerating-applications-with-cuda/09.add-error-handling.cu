@@ -67,9 +67,10 @@ int main()
   size_t number_of_blocks = 32;
 
   doubleElements<<<number_of_blocks, threads_per_block>>>(a, N);
-  cudaDeviceSynchronize();
   // another way to check for errors
   checkCuda(cudaGetLastError());
+
+  checkCuda(cudaDeviceSynchronize());
 
   bool areDoubled = checkElementsAreDoubled(a, N);
   printf("All elements were doubled? %s\n", areDoubled ? "TRUE" : "FALSE");

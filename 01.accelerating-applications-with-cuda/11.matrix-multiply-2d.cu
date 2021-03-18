@@ -78,9 +78,9 @@ int main() {
         (N + threads_per_block.y - 1) / threads_per_block.y
     );
     matrixMulGPU<<<number_of_blocks, threads_per_block>>>(a, b, c_gpu);
-    cudaDeviceSynchronize();
-
     checkCuda(cudaGetLastError());
+
+    checkCuda(cudaDeviceSynchronize());
 
     // Call the CPU version to check our work
     matrixMulCPU(a, b, c_cpu);
