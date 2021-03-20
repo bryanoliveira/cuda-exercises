@@ -12,14 +12,11 @@ inline cudaError_t checkCuda(cudaError_t result) {
 }
 
 __global__ void matrixMulGPU(int *a, int *b, int *c) {
-    // define matrix indexes
-    int row = blockIdx.x * blockDim.x + threadIdx.x;
-    int col = blockIdx.y * blockDim.y + threadIdx.y;
     dim3 stride(blockDim.x * gridDim.x, blockDim.y * gridDim.y);
 
     // perform stride avoiding out of bound access
-    for (; row < N; row += stride.x) {
-        for(; col < N; col += stride.y) {
+    for (int row = blockIdx.x * blockDim.x + threadIdx.x; row < N; row += stride.x) {
+        for(int col = blockIdx.y * blockDim.y + threadIdx.y; col < N; col += stride.y) {
             // perform matrix multiplication
             int val = 0;
             for (int k = 0; k < N; ++k) val += a[row * N + k] * b[k * N + col];
