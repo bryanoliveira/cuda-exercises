@@ -1,35 +1,45 @@
 // from https://learnopengl.com/Getting-started/Hello-Triangle
 #include <stdio.h>
+#include <time.h>
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 
 #define WIDTH 640
 #define HEIGHT 480
-#define ROWS 10
-#define COLS 10
+#define ROWS 50
+#define COLS 50
 
 #define N_CELLS ROWS * COLS
-#define N_VERTEX (ROWS + 1) * (COLS + 1)
+// we define disjunct vertexes for each cell so we can color them independently
+#define N_VERTEX 4 * ROWS * COLS
+
+
+typedef struct _vec3 {
+    float x, y, z;
+    float state;
+    _vec3(float _x, float _y, float _z, float _s) : x(_x), y(_y), z(_z), state(_s) {};
+} vec3;
 
 const char *vertexShaderSource = "#version 460 core\n"
                                  "layout (location = 0) in vec3 aPos;\n"
+                                 "layout (location = 1) in float state;\n"
+                                 "out float v_state;\n"
                                  "void main() {\n"
                                  "   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
+                                 "   v_state = state;\n"
                                  "}\0";
 
 const char *fragmentShaderSource = "#version 460 core\n"
+                                   "in float v_state;\n"
                                    "out vec4 FragColor;\n"
                                    "void main() {\n"
-                                   "    FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
+                                   "    FragColor = vec4(v_state, v_state, v_state, v_state);\n"
                                    "}\0";
 
 unsigned int shaderProgram;
 unsigned int VAO;
-
-typedef struct _vec3 {
-    float x, y, z;
-    _vec3(float _x, float _y, float _z) : x(_x), y(_y), z(_z) {};
-} vec3;
+vec3 * vertices;
+size_t verticesSize;
 
 
 void setupShaderProgram() {
@@ -93,8 +103,16 @@ void display() {
     //      count of elements to draw (6 vertices)
     //      type of the indices
     //      offset in the EBO or an index array
-    glDrawElements(GL_QUADS, 4 * N_CELLS, GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_QUADS, N_VERTEX, GL_UNSIGNED_INT, 0);
     // glBindVertexArray(0); // no need to unbind it every time 
+
+    float state = float(rand()) / RAND_MAX > 0.5 ? 1.0f : 0.0f;
+    for (int vidx = 0; vidx < N_VERTEX; ++vidx) {
+        vertices[vidx].state = state;
+        if ((vidx + 1) % 4 == 0) 
+            state = float(rand()) / RAND_MAX > 0.5 ? 1.0f : 0.0f;
+    }
+    glBufferData(GL_ARRAY_BUFFER, verticesSize, vertices, GL_STATIC_DRAW);
 
     // actually in the screen
     glFlush();
@@ -122,6 +140,8 @@ void initGL(int * argc, char ** argv) {
 }
 
 int main(int argc, char **argv) {
+    srand(time(NULL));
+
     ///// INIT GL
     initGL(&argc, argv);
 
@@ -132,74 +152,37 @@ int main(int argc, char **argv) {
     ///// OBJECT & BUFFER CONFIGURATION
 
     // define square vertices
-    // size_t verticesSize = N_VERTEX * sizeof(vec3);
-    // vec3 * vertices = (vec3 *) malloc(verticesSize);
-    // vertices[0] = vec3(-1.0f,  1.0f, 0.0f);  // 0 top left 
-    // vertices[1] = vec3( 0.0f,  1.0f, 0.0f);  // 1 top center
-    // vertices[2] = vec3( 1.0f,  1.0f, 0.0f);  // 2 top right
-    // vertices[3] = vec3(-1.0f,  0.0f, 0.0f);  // 3 middle left
-    // vertices[4] = vec3( 0.0f,  0.0f, 0.0f);  // 4 middle center
-    // vertices[5] = vec3( 1.0f,  0.0f, 0.0f);  // 5 middle right
-    // vertices[6] = vec3(-1.0f, -1.0f, 0.0f);  // 6 bottom left
-    // vertices[7] = vec3( 0.0f, -1.0f, 0.0f);  // 7 bottom center
-    // vertices[8] = vec3( 1.0f, -1.0f, 0.0f);  // 8 bottom right
-
-    // size_t indicesSize = 4 * N_CELLS * sizeof(unsigned int);
-    // unsigned int * indices = (unsigned int *) malloc(indicesSize);
-    // int idx = 0;
-    // indices[idx++] = 0;
-    // indices[idx++] = 1;
-    // indices[idx++] = 4;
-    // indices[idx++] = 3;
-    // indices[idx++] = 1;
-    // indices[idx++] = 2;
-    // indices[idx++] = 5;
-    // indices[idx++] = 4;
-    // indices[idx++] = 3;
-    // indices[idx++] = 4;
-    // indices[idx++] = 7;
-    // indices[idx++] = 6;
-    // indices[idx++] = 4;
-    // indices[idx++] = 5;
-    // indices[idx++] = 8;
-    // indices[idx++] = 7;
-
-
-    // since we're talking about vertices of squares, we have to add an extra row/col for the borders
-    size_t verticesSize = N_VERTEX * sizeof(vec3);
-    vec3 * vertices = (vec3 *) malloc(verticesSize);
-    for (int y = 0; y < ROWS + 1; ++y) {
-        for (int x = 0; x < COLS + 1; ++x) {
-            int idx = y * (COLS + 1) + x;
-
-            vertices[idx] = vec3(-1.0f + x * (2.0 / COLS), -1.0f + y * (2.0 / ROWS), 0.0f);
-        }
-    }
-    // mount the squares
-    size_t indicesSize = 4 * N_CELLS * sizeof(unsigned int);
+    verticesSize = N_VERTEX * sizeof(vec3);
+    vertices = (vec3 *) malloc(verticesSize);
+    // square indexes
+    size_t indicesSize = N_VERTEX * sizeof(unsigned int);
     unsigned int * indices = (unsigned int *) malloc(indicesSize);
-    for (int y = 0, vidx = 0; y < ROWS; ++y) {
+    // iterate over the number of cells
+    for (int y = 0, idx = 0; y < ROWS; ++y) {
         for (int x = 0; x < COLS; ++x) {
-            indices[vidx++] = y * (COLS + 1) + x; // top  left
-            indices[vidx++] = y * (COLS + 1) + x + 1; // top right
-            indices[vidx++] = (y + 1) * (COLS + 1) + x + 1; // bottom right
-            indices[vidx++] = (y + 1) * (COLS + 1) + x; // bottom left
+            // int idx = y * COLS + x;
+            float state = float(rand()) / RAND_MAX > 0.5 ? 1.0f : 0.0f;
+
+            // vertices live in an (-1, 1) tridimensional space
+            // we need to calculate the position of each vertice inside a 2d grid
+            // top left
+            vertices[idx] = vec3(-1.0f + x * (2.0 / COLS), -1.0f + y * (2.0 / ROWS), 0.0f, state);
+            indices[idx] = idx;
+            idx++;
+            // top right
+            vertices[idx] = vec3(-1.0f + (x + 1) * (2.0 / COLS), -1.0f + y * (2.0 / ROWS), 0.0f, state);
+            indices[idx] = idx;
+            idx++;
+            // bottom right
+            vertices[idx] = vec3(-1.0f + (x + 1) * (2.0 / COLS), -1.0f + (y + 1) * (2.0 / ROWS), 0.0f, state);
+            indices[idx] = idx;
+            idx++;
+            // bottom left
+            vertices[idx] = vec3(-1.0f + x * (2.0 / COLS), -1.0f + (y + 1) * (2.0 / ROWS), 0.0f, state);
+            indices[idx] = idx;
+            idx++;
         }
     }
-
-    // for (int y = 0, vidx = 0; y < ROWS + 1; ++y) {
-    //     for (int x = 0; x < COLS + 1; ++x) {
-    //         int idx = y * (COLS + 1) + x;
-
-    //         printf("%i (%.2f, %.2f)\t", vidx++, vertices[idx].x, vertices[idx].y);
-    //     }
-    //     printf("\n");
-    // }
-    // printf("\n");
-    // for (int vidx = 0; vidx < 4 * N_CELLS; ++vidx) {
-    //     printf("%u\t", indices[vidx]);
-    //     if ((vidx + 1) % 4 == 0) printf("\n");
-    // }
 
     // configure a Vertex Array Object so we configure our objects only once
     glGenVertexArrays(1, &VAO);
@@ -233,9 +216,11 @@ int main(int argc, char **argv) {
     //      use_normalization?
     //      stride of each position vertex in the array. It could be 0 as data is tightly packed.
     //      offset in bytes where the data start in the buffer
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), (void*)0);
+    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, sizeof(vec3), (void*)(3*sizeof(float)));
     // enable the vertex attributes ixn location 0 for the currently bound VBO
     glEnableVertexAttribArray(0); 
+    glEnableVertexAttribArray(1);
     // unbind VAO to avoid modifications when configuring a new VAO
     glBindVertexArray(0);
 
